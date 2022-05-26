@@ -5,7 +5,7 @@ import time
 print('Starting')
 
 transmitter_pin = 27  # ailerons
-servo_pin = 12  # servo
+servo_pin = 26  # servo
 
 pi1 = pigpio.pi()
 

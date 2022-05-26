@@ -5,44 +5,35 @@ import time
 print('Starting')
 
 transmitter_pin = 22  # 27 ailerons
-esc_pin = 23  # 12 servo
+esc_pins = range(23, 27)
 
 pi1 = pigpio.pi()
 pi1.set_mode(transmitter_pin, pigpio.INPUT)
 
-pi2 = pigpio.pi()
-pi2.set_mode(esc_pin, pigpio.OUTPUT)
-
-pi2.set_PWM_frequency(esc_pin, 50)  # 20ms
-pwm_range = 1  # 40000
-# pi2.set_PWM_range(esc_pin, pwm_range)
+pis = [pigpio.pi() for i in range(4)]
+[pi.set_mode(esc_pin, pigpio.OUTPUT) for pi, esc_pin in zip(pis, esc_pins)]
+[pi.set_PWM_frequency(esc_pin, 50) for pi, esc_pin in zip(pis, esc_pins)]  # 20ms
 
 # Transmitter signal
-min_ms = 1.2 # 1.07
+min_ms = 1.2  # 1.07
 max_ms = 2
 
 # ESC signal
 # min_percent = 2.5 / 100
 # max_percent = 12.5 / 100
-min_percent = 1000
-max_percent = 2000
+min_pulse_width = 1000
+max_pulse_width = 2000
 
-# Calibrate ESC
-print('Calibrating ESC ...')
-# pi1.set_PWM_dutycycle(esc_pin, max_percent*pwm_range)
-# time.sleep(2)
-# pi1.set_PWM_dutycycle(esc_pin, min_percent*pwm_range)
-# time.sleep(2)
-
-pi2.set_servo_pulsewidth(esc_pin, 2000)  # Maximum throttle.
+# # Calibrate ESC
+print('Calibrating ESCs ...')
+[pi.set_servo_pulsewidth(esc_pin, max_pulse_width) for pi, esc_pin in zip(pis, esc_pins)]  # Maximum throttle.
 time.sleep(2)
-pi2.set_servo_pulsewidth(esc_pin, 1000)  # Minimum throttle.
+[pi.set_servo_pulsewidth(esc_pin, min_pulse_width) for pi, esc_pin in zip(pis, esc_pins)]  # Minimum throttle.
 time.sleep(2)
 
 
 def rpm_to_dutycycle(rpm):
-    return int((min_percent + rpm / 10 * (max_percent - min_percent)) * pwm_range)
-
+    return int(min_pulse_width + rpm / 10 * (max_pulse_width - min_pulse_width))
 
 def ms_to_rpm(ms):
     return (ms - min_ms) * 10 / (max_ms - min_ms)
@@ -61,10 +52,8 @@ def set_output_dutycycle(gpio_pin, level, tick):
     if t == 0:
         print('Missed rising edge')
     else:
-        # pi1.set_PWM_dutycycle(esc_pin, rpm_to_dutycycle(ms_to_rpm((tick - t) / 1000)))
-        pi2.set_servo_pulsewidth(esc_pin, rpm_to_dutycycle(ms_to_rpm((tick - t) / 1000)))
-        # print(rpm_to_dutycycle(ms_to_rpm((tick-t)/1000)))
-        print((tick-t)/1000)
+        [pi.set_servo_pulsewidth(esc_pin, rpm_to_dutycycle(ms_to_rpm((tick - t) / 1000))) for pi, esc_pin in zip(pis, esc_pins)]
+        # print((tick-t)/1000)
         t = 0
 
 
@@ -82,13 +71,13 @@ except KeyboardInterrupt:
     print('Keyboard Interrupt, cleaning up...')
 
 finally:
-    # Stop ESC
-    pi2.set_servo_pulsewidth(esc_pin, 0)
+    # Stop ESCs
+    [pi.set_servo_pulsewidth(esc_pin, 0) for pi, esc_pin in zip(pis, esc_pins)]
 
     cb1.cancel()
     cb2.cancel()
 
     pi1.stop()
-    pi2.stop()
+    [pi.stop() for pi in pis]
 
     print('Finished')
